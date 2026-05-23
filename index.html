@@ -66,6 +66,14 @@ const ctx = canvas.getContext('2d');
 let W, H, cx, cy, R;
 let aesthetic = 0, timeSec = 4, soundOn = false, audioCtx = null;
 
+const SCALE_MIN = 0.55;
+const SCALE_MAX = 1.52;
+
+// easing functions
+function easeInOutSine(t) { return -(Math.cos(Math.PI*t)-1)/2; }
+function easeInCubic(t) { return t*t*t; }
+function easeOutCubic(t) { return 1-Math.pow(1-t,3); }
+
 function resize() {
   W = canvas.width = window.innerWidth;
   H = canvas.height = window.innerHeight;
@@ -107,7 +115,7 @@ function rebuildScene() {
     };
   });
 
-  fibers = Array.from({length:280},(_,i)=>{
+  fibers = Array.from({length:280},()=>{
     const angle = Math.random()*Math.PI*2;
     const warm = Math.abs(Math.cos(angle+.4))>.35;
     return {
@@ -133,10 +141,11 @@ function rebuildScene() {
 }
 
 // breathing state
-let breathScale=1, targetScale=1;
-let breathPhase='idle', phaseProg=0, phaseTime=4;
+let breathScale = SCALE_MIN;
+let breathPhase = 'idle', phaseProg = 0, phaseTime = 4;
+let scaleAtPhaseStart = SCALE_MIN; // where scale was when phase began
 let running=false, paused=false, currentPhaseIdx=0;
-let speedMult=1, targetSpeedMult=1;
+let speedMult=1;
 let elapsed=0, lastTime=performance.now();
 
 const phaseEl = document.getElementById('phase-label');
@@ -157,20 +166,36 @@ function playTone(freq,dur,atk,dec) {
 }
 
 function startPhase(idx) {
-  currentPhaseIdx=idx%4;
-  breathPhase=['inhale','hold','exhale','hold'][currentPhaseIdx];
-  phaseProg=0; phaseTime=timeSec;
+  currentPhaseIdx = idx%4;
+  breathPhase = ['inhale','hold','exhale','hold'][currentPhaseIdx];
+  phaseProg = 0;
+  phaseTime = timeSec;
+
+  // Snap to exact scale at phase boundaries so holds are perfectly locked
+  if(breathPhase==='inhale')  { scaleAtPhaseStart = SCALE_MIN; speedMult=1; playTone(396,.9,.25,.3); }
+  else if(breathPhase==='exhale') { scaleAtPhaseStart = SCALE_MAX; speedMult=1; playTone(264,.9,.1,.4); }
+  else if(currentPhaseIdx===1){ scaleAtPhaseStart = SCALE_MAX; speedMult=0.06; } // hold after inhale — full
+  else                         { scaleAtPhaseStart = SCALE_MIN; speedMult=0.06; } // hold after exhale — empty
+
   phaseEl.style.opacity='0';
   setTimeout(()=>{ phaseEl.textContent=breathPhase; phaseEl.style.opacity='1'; },220);
-  if(breathPhase==='inhale'){ targetScale=1.52; targetSpeedMult=1; playTone(396,.9,.25,.3); }
-  else if(breathPhase==='exhale'){ targetScale=.60; targetSpeedMult=1; playTone(264,.9,.1,.4); }
-  else { targetScale=currentPhaseIdx===1?1.52:.60; targetSpeedMult=0.06; }
+}
+
+function getBreathScale() {
+  if(breathPhase==='inhale') {
+    return SCALE_MIN + (SCALE_MAX - SCALE_MIN) * easeInOutSine(phaseProg);
+  } else if(breathPhase==='exhale') {
+    return SCALE_MAX + (SCALE_MIN - SCALE_MAX) * easeInOutSine(phaseProg);
+  } else {
+    // hold — locked to start scale with just a breath-like micro-pulse
+    return scaleAtPhaseStart + Math.sin(elapsed * 1.1) * 0.007;
+  }
 }
 
 function resetAll() {
   running=false; paused=false;
-  breathPhase='idle'; breathScale=1; targetScale=1;
-  phaseProg=0; speedMult=1; targetSpeedMult=1;
+  breathPhase='idle'; breathScale=SCALE_MIN;
+  phaseProg=0; speedMult=1;
   phaseEl.textContent=''; countEl.textContent='';
   pauseBtn.style.display='none'; pauseBtn.textContent='pause';
   beginBtn.style.opacity='1'; beginBtn.style.pointerEvents='all';
@@ -263,11 +288,12 @@ function drawOrb(scale,time) {
     const wav=Math.sin(i*.4+time*.18*speedMult)*.06;
     const perp=angle+Math.PI/2;
     ctx.beginPath(); ctx.moveTo(cx,cy);
-    const midX=cx+Math.cos(angle)*len*.5+Math.cos(perp)*wav*R;
-    const midY=cy+Math.sin(angle)*len*.5+Math.sin(perp)*wav*R;
-    const endX=cx+Math.cos(angle)*len+Math.cos(perp)*wav*1.5*R;
-    const endY=cy+Math.sin(angle)*len+Math.sin(perp)*wav*1.5*R;
-    ctx.quadraticCurveTo(midX,midY,endX,endY);
+    ctx.quadraticCurveTo(
+      cx+Math.cos(angle)*len*.5+Math.cos(perp)*wav*R,
+      cy+Math.sin(angle)*len*.5+Math.sin(perp)*wav*R,
+      cx+Math.cos(angle)*len+Math.cos(perp)*wav*1.5*R,
+      cy+Math.sin(angle)*len+Math.sin(perp)*wav*1.5*R
+    );
     ctx.strokeStyle=Math.cos(angle)>.2?'rgba(230,210,185,.11)':'rgba(190,215,230,.09)';
     ctx.lineWidth=.5; ctx.stroke();
   }
@@ -276,8 +302,7 @@ function drawOrb(scale,time) {
     const drift=Math.sin(time*p.speed+p.phase)*.016*speedMult;
     const angle=p.angle+drift;
     const dist=p.ring*R*scale;
-    const px=cx+Math.cos(angle)*dist;
-    const py=cy+Math.sin(angle)*dist;
+    const px=cx+Math.cos(angle)*dist, py=cy+Math.sin(angle)*dist;
     const pulse=1+Math.sin(time*p.speed*1.4+p.phase)*.07;
     const sr=p.size*pulse*(scale*.35+.65);
     const pg=ctx.createRadialGradient(px-sr*.35,py-sr*.35,sr*.02,px,py,sr);
@@ -372,18 +397,21 @@ function frame(now) {
   requestAnimationFrame(frame);
   const rawDt=Math.min((now-lastTime)/1000,.05);
   lastTime=now;
-  const dt=paused?0:rawDt;
-  elapsed+=dt*speedMult;
 
-  if(running&&!paused){
-    speedMult+=(targetSpeedMult-speedMult)*rawDt*3.5;
-    phaseProg+=rawDt/phaseTime;
-    countEl.textContent=Math.max(1,Math.ceil(phaseTime*(1-phaseProg)));
-    if(phaseProg>=1) startPhase(currentPhaseIdx+1);
+  if(!paused) elapsed += rawDt * speedMult;
+
+  if(running && !paused){
+    phaseProg += rawDt / phaseTime;
+    if(phaseProg >= 1) {
+      phaseProg = 1;
+      startPhase(currentPhaseIdx+1);
+    }
+    // count shows seconds remaining, always at least 1
+    countEl.textContent = Math.max(1, Math.ceil(phaseTime*(1-phaseProg)));
   }
 
-  const ease=breathPhase==='inhale'?2.1:breathPhase==='exhale'?1.55:5;
-  breathScale+=(targetScale-breathScale)*rawDt*ease;
+  // Scale is always derived from progress — never eased independently
+  breathScale = getBreathScale();
 
   ctx.fillStyle=aesthetic===2?'rgba(9,13,20,.9)':'rgba(7,11,20,.9)';
   ctx.fillRect(0,0,W,H);
@@ -449,19 +477,17 @@ beginBtn.addEventListener('click',()=>{
 
 let pressTimer=null;
 function startPress(){ pressTimer=setTimeout(()=>{ resetAll(); },650); }
-function endPress(){
-  if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
-}
-pauseBtn.addEventListener('mousedown', startPress);
-pauseBtn.addEventListener('touchstart', startPress, {passive:true});
-pauseBtn.addEventListener('mouseup', endPress);
-pauseBtn.addEventListener('touchend', endPress);
+function endPress(){ if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; } }
+pauseBtn.addEventListener('mousedown',startPress);
+pauseBtn.addEventListener('touchstart',startPress,{passive:true});
+pauseBtn.addEventListener('mouseup',endPress);
+pauseBtn.addEventListener('touchend',endPress);
 pauseBtn.addEventListener('click',()=>{
   if(running){ paused=!paused; pauseBtn.textContent=paused?'resume':'pause'; }
 });
 
 resize();
-window.addEventListener('resize', resize);
+window.addEventListener('resize',resize);
 </script>
 </body>
 </html>
