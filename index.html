@@ -2,33 +2,56 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>breathe</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html,body { width:100%; height:100%; overflow:hidden; background:#080c12; font-family:'Georgia',serif; }
 #wrap { position:relative; width:100vw; height:100vh; overflow:hidden; }
 canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
 
-#menu { position:absolute; top:22px; left:24px; z-index:10; user-select:none; }
-.menu-item { font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:rgba(180,175,195,.42); cursor:pointer; padding:3px 0; transition:color .2s; line-height:1.9; }
-.menu-item:hover { color:rgba(210,205,225,.75); }
+#menu { position:absolute; top:max(22px, env(safe-area-inset-top, 22px)); left:24px; z-index:10; user-select:none; }
+.menu-item { font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:rgba(180,175,195,.42); cursor:pointer; padding:5px 0; transition:color .2s; line-height:1.9; }
+.menu-item:hover, .menu-item:active { color:rgba(210,205,225,.75); }
 .sub-items { display:none; padding-left:14px; }
 .sub-items.open { display:block; }
-.sub-item { font-size:10px; letter-spacing:.15em; text-transform:uppercase; color:rgba(160,155,180,.38); cursor:pointer; padding:2px 0; transition:color .2s; line-height:2; }
-.sub-item:hover { color:rgba(200,195,220,.72); }
+.sub-item { font-size:11px; letter-spacing:.15em; text-transform:uppercase; color:rgba(160,155,180,.38); cursor:pointer; padding:5px 0; transition:color .2s; line-height:1.9; }
+.sub-item:hover, .sub-item:active { color:rgba(200,195,220,.72); }
 .sub-item.selected { color:rgba(210,205,230,.72); }
 .sub-item.selected::before { content:'· '; }
 
 #center-ui { position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
-#phase-label { font-size:10px; letter-spacing:.45em; text-transform:uppercase; color:rgba(210,205,230,.42); margin-bottom:8px; min-height:14px; transition:opacity .6s; }
-#count-display { font-size:52px; color:rgba(225,220,240,.65); font-weight:200; min-height:64px; letter-spacing:-.02em; }
+#phase-label { font-size:11px; letter-spacing:.45em; text-transform:uppercase; color:rgba(210,205,230,.42); margin-bottom:10px; min-height:16px; transition:opacity .6s; }
+#count-display { font-size:56px; color:rgba(225,220,240,.65); font-weight:200; min-height:68px; letter-spacing:-.02em; }
 
-#begin-btn { position:absolute; bottom:28px; left:24px; font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:rgba(175,170,195,.42); cursor:pointer; background:none; border:none; transition:color .2s; font-family:'Georgia',serif; }
-#begin-btn:hover { color:rgba(210,205,230,.78); }
+/* Bottom bar holds begin + pause — always above safe area */
+#bottom-bar {
+  position:absolute;
+  bottom:0; left:0; right:0;
+  padding-bottom:max(28px, env(safe-area-inset-bottom, 28px));
+  padding-left:24px; padding-right:24px;
+  padding-top:12px;
+  display:flex; justify-content:space-between; align-items:flex-end;
+  pointer-events:none;
+}
+#begin-btn, #pause-btn {
+  font-size:12px; letter-spacing:.22em; text-transform:uppercase;
+  color:rgba(175,170,195,.42); cursor:pointer; background:none; border:none;
+  font-family:'Georgia',serif; pointer-events:all;
+  padding:12px 0; /* large tap target */
+  transition:color .2s;
+  -webkit-appearance:none;
+}
+#begin-btn:hover, #begin-btn:active { color:rgba(210,205,230,.78); }
+#pause-btn { color:rgba(175,170,195,.32); display:none; }
+#pause-btn:hover, #pause-btn:active { color:rgba(210,205,230,.68); }
 
-#pause-btn { position:absolute; bottom:28px; right:24px; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:rgba(175,170,195,.32); cursor:pointer; background:none; border:none; display:none; transition:color .2s; font-family:'Georgia',serif; }
-#pause-btn:hover { color:rgba(210,205,230,.68); }
+@media (max-width: 480px) {
+  #count-display { font-size:48px; }
+  #phase-label { font-size:10px; }
+  .menu-item { font-size:11px; padding:6px 0; }
+  .sub-item { padding:6px 0; }
+}
 </style>
 </head>
 <body>
@@ -56,8 +79,10 @@ canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
     <div id="count-display"></div>
   </div>
 
-  <button id="begin-btn">begin</button>
-  <button id="pause-btn">pause</button>
+  <div id="bottom-bar">
+    <button id="begin-btn">begin</button>
+    <button id="pause-btn">pause</button>
+  </div>
 </div>
 
 <script>
@@ -69,15 +94,14 @@ let aesthetic = 0, timeSec = 4, soundOn = false, audioCtx = null;
 const SCALE_MIN = 0.55;
 const SCALE_MAX = 1.52;
 
-// easing functions
 function easeInOutSine(t) { return -(Math.cos(Math.PI*t)-1)/2; }
-function easeInCubic(t) { return t*t*t; }
-function easeOutCubic(t) { return 1-Math.pow(1-t,3); }
 
 function resize() {
   W = canvas.width = window.innerWidth;
   H = canvas.height = window.innerHeight;
-  cx = W/2; cy = H/2; R = Math.min(W,H) * 0.3;
+  cx = W/2; cy = H/2;
+  // Mobile gets a bigger organism relative to screen
+  R = Math.min(W,H) * (W < 480 ? 0.36 : 0.3);
   rebuildScene();
 }
 
@@ -143,7 +167,7 @@ function rebuildScene() {
 // breathing state
 let breathScale = SCALE_MIN;
 let breathPhase = 'idle', phaseProg = 0, phaseTime = 4;
-let scaleAtPhaseStart = SCALE_MIN; // where scale was when phase began
+let scaleAtPhaseStart = SCALE_MIN;
 let running=false, paused=false, currentPhaseIdx=0;
 let speedMult=1;
 let elapsed=0, lastTime=performance.now();
@@ -171,11 +195,10 @@ function startPhase(idx) {
   phaseProg = 0;
   phaseTime = timeSec;
 
-  // Snap to exact scale at phase boundaries so holds are perfectly locked
-  if(breathPhase==='inhale')  { scaleAtPhaseStart = SCALE_MIN; speedMult=1; playTone(396,.9,.25,.3); }
-  else if(breathPhase==='exhale') { scaleAtPhaseStart = SCALE_MAX; speedMult=1; playTone(264,.9,.1,.4); }
-  else if(currentPhaseIdx===1){ scaleAtPhaseStart = SCALE_MAX; speedMult=0.06; } // hold after inhale — full
-  else                         { scaleAtPhaseStart = SCALE_MIN; speedMult=0.06; } // hold after exhale — empty
+  if(breathPhase==='inhale')       { scaleAtPhaseStart=SCALE_MIN; speedMult=1; playTone(396,.9,.25,.3); }
+  else if(breathPhase==='exhale')  { scaleAtPhaseStart=SCALE_MAX; speedMult=1; playTone(264,.9,.1,.4); }
+  else if(currentPhaseIdx===1)     { scaleAtPhaseStart=SCALE_MAX; speedMult=0.06; }
+  else                             { scaleAtPhaseStart=SCALE_MIN; speedMult=0.06; }
 
   phaseEl.style.opacity='0';
   setTimeout(()=>{ phaseEl.textContent=breathPhase; phaseEl.style.opacity='1'; },220);
@@ -183,12 +206,11 @@ function startPhase(idx) {
 
 function getBreathScale() {
   if(breathPhase==='inhale') {
-    return SCALE_MIN + (SCALE_MAX - SCALE_MIN) * easeInOutSine(phaseProg);
+    return SCALE_MIN + (SCALE_MAX-SCALE_MIN) * easeInOutSine(phaseProg);
   } else if(breathPhase==='exhale') {
-    return SCALE_MAX + (SCALE_MIN - SCALE_MAX) * easeInOutSine(phaseProg);
+    return SCALE_MAX + (SCALE_MIN-SCALE_MAX) * easeInOutSine(phaseProg);
   } else {
-    // hold — locked to start scale with just a breath-like micro-pulse
-    return scaleAtPhaseStart + Math.sin(elapsed * 1.1) * 0.007;
+    return scaleAtPhaseStart + Math.sin(elapsed*1.1)*0.007;
   }
 }
 
@@ -273,7 +295,6 @@ function drawOrb(scale,time) {
   bg.addColorStop(.6,'rgba(180,140,200,.03)');
   bg.addColorStop(1,'transparent');
   ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
-
   const sweep=ctx.createLinearGradient(0,H*.6,W,H);
   sweep.addColorStop(0,'rgba(140,100,200,.05)');
   sweep.addColorStop(.3,'rgba(100,180,220,.04)');
@@ -288,12 +309,7 @@ function drawOrb(scale,time) {
     const wav=Math.sin(i*.4+time*.18*speedMult)*.06;
     const perp=angle+Math.PI/2;
     ctx.beginPath(); ctx.moveTo(cx,cy);
-    ctx.quadraticCurveTo(
-      cx+Math.cos(angle)*len*.5+Math.cos(perp)*wav*R,
-      cy+Math.sin(angle)*len*.5+Math.sin(perp)*wav*R,
-      cx+Math.cos(angle)*len+Math.cos(perp)*wav*1.5*R,
-      cy+Math.sin(angle)*len+Math.sin(perp)*wav*1.5*R
-    );
+    ctx.quadraticCurveTo(cx+Math.cos(angle)*len*.5+Math.cos(perp)*wav*R,cy+Math.sin(angle)*len*.5+Math.sin(perp)*wav*R,cx+Math.cos(angle)*len+Math.cos(perp)*wav*1.5*R,cy+Math.sin(angle)*len+Math.sin(perp)*wav*1.5*R);
     ctx.strokeStyle=Math.cos(angle)>.2?'rgba(230,210,185,.11)':'rgba(190,215,230,.09)';
     ctx.lineWidth=.5; ctx.stroke();
   }
@@ -307,19 +323,14 @@ function drawOrb(scale,time) {
     const sr=p.size*pulse*(scale*.35+.65);
     const pg=ctx.createRadialGradient(px-sr*.35,py-sr*.35,sr*.02,px,py,sr);
     if(p.warmTint){
-      pg.addColorStop(0,'rgba(255,252,242,.97)');
-      pg.addColorStop(.2,'rgba(240,228,210,.88)');
-      pg.addColorStop(.55,'rgba(210,200,188,.52)');
-      pg.addColorStop(.85,'rgba(190,185,178,.18)');
+      pg.addColorStop(0,'rgba(255,252,242,.97)'); pg.addColorStop(.2,'rgba(240,228,210,.88)');
+      pg.addColorStop(.55,'rgba(210,200,188,.52)'); pg.addColorStop(.85,'rgba(190,185,178,.18)');
     } else {
-      pg.addColorStop(0,'rgba(252,255,255,.97)');
-      pg.addColorStop(.2,'rgba(225,235,245,.88)');
-      pg.addColorStop(.55,'rgba(195,215,230,.48)');
-      pg.addColorStop(.85,'rgba(175,200,220,.16)');
+      pg.addColorStop(0,'rgba(252,255,255,.97)'); pg.addColorStop(.2,'rgba(225,235,245,.88)');
+      pg.addColorStop(.55,'rgba(195,215,230,.48)'); pg.addColorStop(.85,'rgba(175,200,220,.16)');
     }
     pg.addColorStop(1,'transparent');
-    ctx.beginPath(); ctx.arc(px,py,sr,0,Math.PI*2);
-    ctx.fillStyle=pg; ctx.fill();
+    ctx.beginPath(); ctx.arc(px,py,sr,0,Math.PI*2); ctx.fillStyle=pg; ctx.fill();
     const shimmer=Math.sin(time*1.6*speedMult+p.phase)*.5+.5;
     ctx.strokeStyle=`hsla(${p.hue+shimmer*45},70%,88%,${.14+shimmer*.17})`; ctx.lineWidth=.5; ctx.stroke();
     ctx.beginPath(); ctx.arc(px-sr*.32,py-sr*.35,sr*.13,0,Math.PI*2);
@@ -329,17 +340,13 @@ function drawOrb(scale,time) {
 
 function drawFibers(scale,time) {
   const wg=ctx.createRadialGradient(cx,cy,0,cx,cy,R*scale*1.15);
-  wg.addColorStop(0,'rgba(255,198,118,.2)');
-  wg.addColorStop(.28,'rgba(238,158,80,.11)');
-  wg.addColorStop(.65,'rgba(95,128,148,.04)');
-  wg.addColorStop(1,'transparent');
+  wg.addColorStop(0,'rgba(255,198,118,.2)'); wg.addColorStop(.28,'rgba(238,158,80,.11)');
+  wg.addColorStop(.65,'rgba(95,128,148,.04)'); wg.addColorStop(1,'transparent');
   ctx.fillStyle=wg; ctx.beginPath(); ctx.arc(cx,cy,R*scale*1.5,0,Math.PI*2); ctx.fill();
 
   fibers.forEach(f=>{
     const sway=Math.sin(time*.2*speedMult+f.wavPhase)*f.wavAmp;
-    const angle=f.angle+sway;
-    const len=f.len*R*scale;
-    const perp=angle+Math.PI/2;
+    const angle=f.angle+sway, len=f.len*R*scale, perp=angle+Math.PI/2;
     ctx.beginPath(); ctx.moveTo(cx,cy);
     for(let i=1;i<=24;i++){
       const t=i/24;
@@ -397,49 +404,35 @@ function frame(now) {
   requestAnimationFrame(frame);
   const rawDt=Math.min((now-lastTime)/1000,.05);
   lastTime=now;
+  if(!paused) elapsed+=rawDt*speedMult;
 
-  if(!paused) elapsed += rawDt * speedMult;
-
-  if(running && !paused){
-    phaseProg += rawDt / phaseTime;
-    if(phaseProg >= 1) {
-      phaseProg = 1;
-      startPhase(currentPhaseIdx+1);
-    }
-    // count shows seconds remaining, always at least 1
-    countEl.textContent = Math.max(1, Math.ceil(phaseTime*(1-phaseProg)));
+  if(running&&!paused){
+    phaseProg+=rawDt/phaseTime;
+    if(phaseProg>=1){ phaseProg=1; startPhase(currentPhaseIdx+1); }
+    countEl.textContent=Math.max(1,Math.ceil(phaseTime*(1-phaseProg)));
   }
 
-  // Scale is always derived from progress — never eased independently
-  breathScale = getBreathScale();
+  breathScale=getBreathScale();
 
   ctx.fillStyle=aesthetic===2?'rgba(9,13,20,.9)':'rgba(7,11,20,.9)';
   ctx.fillRect(0,0,W,H);
 
   if(aesthetic===0){
-    drawBokeh(elapsed);
-    drawOrb(breathScale,elapsed);
-    drawCore(breathScale,elapsed,false);
+    drawBokeh(elapsed); drawOrb(breathScale,elapsed); drawCore(breathScale,elapsed,false);
   } else if(aesthetic===1){
-    drawBokeh(elapsed);
-    drawPetals(breathScale,elapsed);
-    drawFilaments(breathScale,elapsed);
-    drawCore(breathScale,elapsed,false);
+    drawBokeh(elapsed); drawPetals(breathScale,elapsed); drawFilaments(breathScale,elapsed); drawCore(breathScale,elapsed,false);
   } else {
-    drawFibers(breathScale,elapsed);
-    drawCore(breathScale,elapsed,true);
+    drawFibers(breathScale,elapsed); drawCore(breathScale,elapsed,true);
   }
   drawArc();
 }
 requestAnimationFrame(frame);
 
+// Menu
 function toggleSub(id) {
-  ['sub-aesthetic','sub-timing'].forEach(s=>{
-    if(s!==id) document.getElementById(s).classList.remove('open');
-  });
+  ['sub-aesthetic','sub-timing'].forEach(s=>{ if(s!==id) document.getElementById(s).classList.remove('open'); });
   document.getElementById(id).classList.toggle('open');
 }
-
 document.getElementById('lbl-aesthetic').addEventListener('click',()=>toggleSub('sub-aesthetic'));
 document.getElementById('lbl-timing').addEventListener('click',()=>toggleSub('sub-timing'));
 
@@ -451,7 +444,6 @@ document.querySelectorAll('[data-ae]').forEach(el=>{
     document.getElementById('sub-aesthetic').classList.remove('open');
   });
 });
-
 document.querySelectorAll('[data-t]').forEach(el=>{
   el.addEventListener('click',()=>{
     timeSec=parseInt(el.dataset.t);
@@ -460,13 +452,13 @@ document.querySelectorAll('[data-t]').forEach(el=>{
     document.getElementById('sub-timing').classList.remove('open');
   });
 });
-
 document.getElementById('lbl-sound').addEventListener('click',()=>{
   soundOn=!soundOn;
   document.getElementById('sound-state').textContent=soundOn?'on':'off';
   if(soundOn&&!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
 });
 
+// Begin / Pause
 beginBtn.addEventListener('click',()=>{
   if(soundOn&&!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
   running=true;
@@ -481,9 +473,15 @@ function endPress(){ if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; 
 pauseBtn.addEventListener('mousedown',startPress);
 pauseBtn.addEventListener('touchstart',startPress,{passive:true});
 pauseBtn.addEventListener('mouseup',endPress);
-pauseBtn.addEventListener('touchend',endPress);
+pauseBtn.addEventListener('touchend',endPress,{passive:true});
 pauseBtn.addEventListener('click',()=>{
   if(running){ paused=!paused; pauseBtn.textContent=paused?'resume':'pause'; }
+});
+
+// Close menus on canvas tap
+canvas.addEventListener('click',()=>{
+  document.getElementById('sub-aesthetic').classList.remove('open');
+  document.getElementById('sub-timing').classList.remove('open');
 });
 
 resize();
