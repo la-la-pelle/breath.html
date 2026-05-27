@@ -9,6 +9,7 @@
 html,body { width:100%; height:100%; overflow:hidden; background:#080c12; font-family:'Georgia',serif; }
 #wrap { position:relative; width:100vw; height:100vh; overflow:hidden; }
 canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
+
 #menu { position:absolute; top:max(22px, env(safe-area-inset-top, 22px)); left:24px; z-index:10; user-select:none; }
 .menu-item { font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:rgba(180,175,195,.42); cursor:pointer; padding:5px 0; transition:color .2s; line-height:1.9; }
 .menu-item:hover,.menu-item:active { color:rgba(210,205,225,.75); }
@@ -18,15 +19,47 @@ canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
 .sub-item:hover,.sub-item:active { color:rgba(200,195,220,.72); }
 .sub-item.selected { color:rgba(210,205,230,.72); }
 .sub-item.selected::before { content:'· '; }
-#center-ui { position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
-#phase-label { font-size:11px; letter-spacing:.45em; text-transform:uppercase; color:rgba(210,205,230,.42); margin-bottom:10px; min-height:16px; transition:opacity .6s; }
-#count-display { font-size:56px; color:rgba(225,220,240,.65); font-weight:200; min-height:68px; letter-spacing:-.02em; }
-#bottom-bar { position:absolute; bottom:0; left:0; right:0; padding-bottom:max(28px, env(safe-area-inset-bottom, 28px)); padding-left:24px; padding-right:24px; padding-top:12px; display:flex; justify-content:space-between; align-items:flex-end; pointer-events:none; }
-#begin-btn,#pause-btn { font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:rgba(175,170,195,.42); cursor:pointer; background:none; border:none; font-family:'Georgia',serif; pointer-events:all; padding:12px 0; transition:color .2s; -webkit-appearance:none; }
+
+/* Phase label and count — lower third, never overlapping organism */
+#center-ui {
+  position:absolute;
+  bottom:max(100px, env(safe-area-inset-bottom, 100px));
+  left:0; width:100%;
+  display:flex; flex-direction:column; align-items:center;
+  pointer-events:none; gap:6px;
+}
+#phase-label {
+  font-size:10px; letter-spacing:.5em; text-transform:uppercase;
+  color:rgba(210,205,230,.35); min-height:14px; transition:opacity .6s;
+}
+#count-display {
+  font-size:42px; color:rgba(225,220,240,.22);
+  font-weight:200; min-height:52px; letter-spacing:-.02em;
+}
+
+#bottom-bar {
+  position:absolute; bottom:0; left:0; right:0;
+  padding-bottom:max(28px, env(safe-area-inset-bottom, 28px));
+  padding-left:24px; padding-right:24px; padding-top:12px;
+  display:flex; justify-content:space-between; align-items:flex-end;
+  pointer-events:none;
+}
+#begin-btn,#pause-btn {
+  font-size:12px; letter-spacing:.22em; text-transform:uppercase;
+  color:rgba(175,170,195,.42); cursor:pointer; background:none; border:none;
+  font-family:'Georgia',serif; pointer-events:all; padding:12px 0;
+  transition:color .2s; -webkit-appearance:none;
+}
 #begin-btn:hover,#begin-btn:active { color:rgba(210,205,230,.78); }
 #pause-btn { color:rgba(175,170,195,.32); display:none; }
 #pause-btn:hover,#pause-btn:active { color:rgba(210,205,230,.68); }
-@media(max-width:480px){#count-display{font-size:48px;}#phase-label{font-size:10px;}.menu-item{font-size:11px;padding:6px 0;}.sub-item{padding:6px 0;}}
+
+@media(max-width:480px){
+  #count-display{font-size:36px;}
+  #phase-label{font-size:10px;}
+  .menu-item{font-size:11px;padding:6px 0;}
+  .sub-item{padding:6px 0;}
+}
 </style>
 </head>
 <body>
@@ -48,10 +81,12 @@ canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
     </div>
     <div class="menu-item" id="lbl-sound">sound &nbsp;<span id="sound-state">off</span></div>
   </div>
+
   <div id="center-ui">
     <div id="phase-label"></div>
     <div id="count-display"></div>
   </div>
+
   <div id="bottom-bar">
     <button id="begin-btn">begin</button>
     <button id="pause-btn">pause</button>
@@ -72,40 +107,31 @@ function resize(){
   W = canvas.width = window.innerWidth;
   H = canvas.height = window.innerHeight;
   cx = W/2; cy = H/2;
-  R = Math.min(W,H)*(W<480?0.36:0.3);
+  // Ring capped so it never exceeds ~40% of the shortest dimension
+  R = Math.min(W, H) * (W < 480 ? 0.30 : 0.28);
   rebuildScene();
 }
 
-// ── SCENE DATA ───────────────────────────────────────────────
 let auroraOrbs=[], filaments=[], bokeh=[], petals=[], fibers=[], pearls=[];
 
 function rebuildScene(){
-  // AURORA — large soft overlapping orbs like your TD piece
-  // A fixed cluster of orbs with defined roles so they move coherently
-  const auroraColors = [
-    {h:270, s:55, l:65},  // purple
-    {h:280, s:45, l:72},  // lavender
-    {h:255, s:50, l:70},  // blue-purple
-    {h:195, s:40, l:75},  // teal-white
-    {h:290, s:35, l:80},  // pale violet
-    {h:240, s:30, l:82},  // ice
-    {h:310, s:40, l:68},  // pink-purple
-    {h:185, s:45, l:70},  // teal
+  // AURORA
+  const aC=[
+    {h:270,s:55,l:65},{h:280,s:45,l:72},{h:255,s:50,l:70},
+    {h:195,s:40,l:75},{h:290,s:35,l:80},{h:240,s:30,l:82},
+    {h:310,s:40,l:68},{h:185,s:45,l:70},
   ];
-  auroraOrbs = auroraColors.map((c,i)=>{
-    const angle = (i/auroraColors.length)*Math.PI*2 + Math.random()*.4;
-    const baseR = .18 + Math.random()*.28; // normalized radius from center
-    return {
-      angle, baseR,
-      driftSpeed: .06+Math.random()*.08,
-      driftPhase: Math.random()*Math.PI*2,
-      driftAmp: .04+Math.random()*.06,
-      h:c.h, s:c.s, l:c.l,
-      size: .32+Math.random()*.28, // normalized, fraction of min(W,H)
-      alpha: .55+Math.random()*.3,
-      pulsePhase: Math.random()*Math.PI*2,
-    };
-  });
+  auroraOrbs = aC.map((c,i)=>({
+    angle:(i/aC.length)*Math.PI*2+Math.random()*.4,
+    baseR:.18+Math.random()*.28,
+    driftSpeed:.06+Math.random()*.08,
+    driftPhase:Math.random()*Math.PI*2,
+    driftAmp:.04+Math.random()*.06,
+    h:c.h,s:c.s,l:c.l,
+    size:.32+Math.random()*.28,
+    alpha:.55+Math.random()*.3,
+    pulsePhase:Math.random()*Math.PI*2,
+  }));
 
   // FILAMENT
   filaments = Array.from({length:32},(_,i)=>({
@@ -117,60 +143,51 @@ function rebuildScene(){
     wavPhase:Math.random()*Math.PI*2,
     hue:170+Math.random()*90,
     orbs:Array.from({length:4},(_,j)=>({
-      t:.15+(j/3)*.7, size:2.5+Math.random()*8,
-      phase:Math.random()*Math.PI*2, hue:165+Math.random()*100
+      t:.15+(j/3)*.7,size:2.5+Math.random()*8,
+      phase:Math.random()*Math.PI*2,hue:165+Math.random()*100
     }))
   }));
-
   petals = Array.from({length:8},(_,i)=>({
     angle:(i/8)*Math.PI*2+Math.random()*.25,
-    len:.5+Math.random()*.38, width:.16+Math.random()*.13,
-    hue:175+Math.random()*75, phase:Math.random()*Math.PI*2
+    len:.5+Math.random()*.38,width:.16+Math.random()*.13,
+    hue:175+Math.random()*75,phase:Math.random()*Math.PI*2
   }));
 
   // ORB
   pearls = Array.from({length:200},()=>{
     const r=Math.random();
     const ring=r<.4?Math.random()*.28:r<.75?.28+Math.random()*.32:.6+Math.random()*.42;
-    return {
-      ring, angle:Math.random()*Math.PI*2,
+    return{ring,angle:Math.random()*Math.PI*2,
       size:ring<.3?2+Math.random()*16:ring<.6?1.5+Math.random()*9:.8+Math.random()*5,
-      phase:Math.random()*Math.PI*2, hue:190+Math.random()*60,
-      warmTint:Math.random()>.6, speed:.15+Math.random()*.35
-    };
+      phase:Math.random()*Math.PI*2,hue:190+Math.random()*60,
+      warmTint:Math.random()>.6,speed:.15+Math.random()*.35};
   });
 
   // FIBER
   fibers = Array.from({length:280},()=>{
     const angle=Math.random()*Math.PI*2;
     const warm=Math.abs(Math.cos(angle+.4))>.35;
-    return {
-      angle, warm,
-      len:.4+Math.random()*.7,
-      wavAmp:(Math.random()-.5)*.13,
-      wavFreq:.7+Math.random()*2.8,
+    return{angle,warm,len:.4+Math.random()*.7,
+      wavAmp:(Math.random()-.5)*.13,wavFreq:.7+Math.random()*2.8,
       wavPhase:Math.random()*Math.PI*2,
       hue:warm?25+Math.random()*25:190+Math.random()*38,
       sat:warm?48+Math.random()*28:16+Math.random()*24,
-      alpha:.06+Math.random()*.26,
-      width:.3+Math.random()*1.5,
-      phase:Math.random()*Math.PI*2
-    };
+      alpha:.06+Math.random()*.26,width:.3+Math.random()*1.5,
+      phase:Math.random()*Math.PI*2};
   }).sort((a,b)=>a.warm-b.warm);
 
   bokeh = Array.from({length:65},()=>({
-    x:Math.random(), y:Math.random(),
-    r:3+Math.random()*18, a:.028+Math.random()*.085,
-    hue:160+Math.random()*130,
-    phase:Math.random()*Math.PI*2, speed:.18+Math.random()*.38
+    x:Math.random(),y:Math.random(),r:3+Math.random()*18,
+    a:.028+Math.random()*.085,hue:160+Math.random()*130,
+    phase:Math.random()*Math.PI*2,speed:.18+Math.random()*.38
   }));
 }
 
-// ── BREATHING STATE ──────────────────────────────────────────
-let breathScale=SCALE_MIN, breathPhase='idle', phaseProg=0, phaseTime=4;
+// breathing state
+let breathScale=SCALE_MIN,breathPhase='idle',phaseProg=0,phaseTime=4;
 let scaleAtPhaseStart=SCALE_MIN;
-let running=false, paused=false, currentPhaseIdx=0;
-let speedMult=1, elapsed=0, lastTime=performance.now();
+let running=false,paused=false,currentPhaseIdx=0;
+let speedMult=1,elapsed=0,lastTime=performance.now();
 
 const phaseEl=document.getElementById('phase-label');
 const countEl=document.getElementById('count-display');
@@ -183,20 +200,18 @@ function playTone(freq,dur,atk,dec){
   o.connect(g);g.connect(audioCtx.destination);
   o.frequency.value=freq;o.type='sine';
   const t=audioCtx.currentTime;
-  g.gain.setValueAtTime(0,t);
-  g.gain.linearRampToValueAtTime(.07,t+atk);
-  g.gain.linearRampToValueAtTime(0,t+dur-dec);
-  o.start(t);o.stop(t+dur);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.07,t+atk);
+  g.gain.linearRampToValueAtTime(0,t+dur-dec);o.start(t);o.stop(t+dur);
 }
 
 function startPhase(idx){
   currentPhaseIdx=idx%4;
   breathPhase=['inhale','hold','exhale','hold'][currentPhaseIdx];
-  phaseProg=0; phaseTime=timeSec;
-  if(breathPhase==='inhale')      {scaleAtPhaseStart=SCALE_MIN;speedMult=1;playTone(396,.9,.25,.3);}
-  else if(breathPhase==='exhale') {scaleAtPhaseStart=SCALE_MAX;speedMult=1;playTone(264,.9,.1,.4);}
-  else if(currentPhaseIdx===1)    {scaleAtPhaseStart=SCALE_MAX;speedMult=0.06;}
-  else                            {scaleAtPhaseStart=SCALE_MIN;speedMult=0.06;}
+  phaseProg=0;phaseTime=timeSec;
+  if(breathPhase==='inhale')     {scaleAtPhaseStart=SCALE_MIN;speedMult=1;playTone(396,.9,.25,.3);}
+  else if(breathPhase==='exhale'){scaleAtPhaseStart=SCALE_MAX;speedMult=1;playTone(264,.9,.1,.4);}
+  else if(currentPhaseIdx===1)   {scaleAtPhaseStart=SCALE_MAX;speedMult=0.12;}
+  else                           {scaleAtPhaseStart=SCALE_MIN;speedMult=0.12;}
   phaseEl.style.opacity='0';
   setTimeout(()=>{phaseEl.textContent=breathPhase;phaseEl.style.opacity='1';},220);
 }
@@ -216,57 +231,108 @@ function resetAll(){
   beginBtn.style.opacity='1';beginBtn.style.pointerEvents='all';
 }
 
-// ── AURORA DRAW ──────────────────────────────────────────────
-function drawAurora(scale, time){
-  const S = Math.min(W,H);
+// ── TINGLE helpers — alive feeling at center during hold ─────
 
-  // Background — deep dark with subtle purple undertone that brightens on inhale
-  const bgAlpha = 0.88 + (scale - SCALE_MIN)/(SCALE_MAX-SCALE_MIN) * 0.0; // stays dark
-  ctx.fillStyle=`rgba(10,7,18,${bgAlpha})`;
-  ctx.fillRect(0,0,W,H);
+// Aurora: soft radial pulses emanating outward from center
+function drawAuroraTingle(time){
+  const numRings=4;
+  for(let i=0;i<numRings;i++){
+    const offset=(i/numRings)*Math.PI*2;
+    const t=((time*0.35+offset)%(Math.PI*2))/(Math.PI*2);
+    const r=t*Math.min(W,H)*0.38;
+    const a=(1-t)*0.06;
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(210,195,255,${a})`;ctx.lineWidth=1.2;ctx.stroke();
+  }
+}
 
-  // Overall luminosity driven by breath scale
-  const breathT = (scale-SCALE_MIN)/(SCALE_MAX-SCALE_MIN); // 0=exhaled, 1=inhaled
+// Orb: sparkling motes at center that scatter and fade
+function drawOrbTingle(scale,time){
+  const count=18;
+  for(let i=0;i<count;i++){
+    const a=(i/count)*Math.PI*2+time*0.4;
+    const dist=(4+Math.sin(time*2.2+i*1.3)*3)*scale;
+    const px=cx+Math.cos(a)*dist,py=cy+Math.sin(a)*dist;
+    const pulse=(Math.sin(time*3+i*0.7)*.5+.5);
+    const sz=0.8+pulse*2.2;
+    ctx.beginPath();ctx.arc(px,py,sz,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,255,255,${0.25+pulse*0.55})`;ctx.fill();
+  }
+  // secondary slower ring
+  for(let i=0;i<10;i++){
+    const a=(i/10)*Math.PI*2+time*0.18;
+    const dist=(10+Math.sin(time*1.5+i)*4)*scale;
+    const px=cx+Math.cos(a)*dist,py=cy+Math.sin(a)*dist;
+    const pulse=Math.sin(time*2.5+i*0.9)*.5+.5;
+    ctx.beginPath();ctx.arc(px,py,0.6+pulse*1.4,0,Math.PI*2);
+    ctx.fillStyle=`rgba(200,220,255,${0.2+pulse*0.35})`;ctx.fill();
+  }
+}
 
-  auroraOrbs.forEach((orb,i)=>{
-    // Drift gently
-    const driftAngle = orb.angle + Math.sin(time*orb.driftSpeed+orb.driftPhase)*orb.driftAmp;
-    // Expand outward on inhale, contract on exhale
-    const expandedR = orb.baseR * (0.5 + breathT * 1.1); // range: ~0.5x to ~1.6x base
-    const dist = expandedR * S;
-    const px = cx + Math.cos(driftAngle)*dist;
-    const py = cy + Math.sin(driftAngle)*dist;
+// Filament: shimmer along arm tips and center flicker
+function drawFilamentTingle(scale,time){
+  const count=20;
+  for(let i=0;i<count;i++){
+    const a=(i/count)*Math.PI*2;
+    const dist=(3+Math.sin(time*2.8+i*1.1)*2.5)*scale;
+    const px=cx+Math.cos(a)*dist,py=cy+Math.sin(a)*dist;
+    const pulse=Math.sin(time*3.5+i*0.8)*.5+.5;
+    ctx.beginPath();ctx.arc(px,py,0.5+pulse*1.8,0,Math.PI*2);
+    ctx.fillStyle=`hsla(${190+i*8},80%,90%,${0.2+pulse*0.5})`;ctx.fill();
+  }
+}
 
-    // Size blooms too
-    const bloomSize = orb.size * S * (0.55 + breathT * 0.85);
+// Fiber: warm ember sparks near core
+function drawFiberTingle(scale,time){
+  const count=22;
+  for(let i=0;i<count;i++){
+    const a=(i/count)*Math.PI*2+time*0.15;
+    const dist=(3+Math.sin(time*2+i*1.4)*3)*scale;
+    const px=cx+Math.cos(a)*dist,py=cy+Math.sin(a)*dist;
+    const pulse=Math.sin(time*2.8+i*0.6)*.5+.5;
+    const warm=i%3!==0;
+    ctx.beginPath();ctx.arc(px,py,0.7+pulse*2,0,Math.PI*2);
+    ctx.fillStyle=warm?`rgba(255,200,120,${0.22+pulse*0.5})`:`rgba(180,220,240,${0.18+pulse*0.38})`;
+    ctx.fill();
+  }
+}
 
-    // Alpha brightens on inhale
-    const pulse = Math.sin(time*0.4*speedMult+orb.pulsePhase)*0.04;
-    const alpha = orb.alpha*(0.45 + breathT*0.55) + pulse;
+// ── DRAW FUNCTIONS ───────────────────────────────────────────
+function drawAurora(scale,time){
+  const S=Math.min(W,H);
+  const breathT=(scale-SCALE_MIN)/(SCALE_MAX-SCALE_MIN);
 
-    const g = ctx.createRadialGradient(px-bloomSize*.15,py-bloomSize*.12,bloomSize*.02,px,py,bloomSize);
-    g.addColorStop(0,`hsla(${orb.h},${orb.s}%,${orb.l+10}%,${Math.min(alpha,0.92)})`);
+  // Dark bg with trail
+  ctx.fillStyle='rgba(10,7,18,0.55)';ctx.fillRect(0,0,W,H);
+
+  auroraOrbs.forEach(orb=>{
+    const driftAngle=orb.angle+Math.sin(time*orb.driftSpeed+orb.driftPhase)*orb.driftAmp;
+    const expandedR=orb.baseR*(0.5+breathT*1.1);
+    const dist=expandedR*S;
+    const px=cx+Math.cos(driftAngle)*dist,py=cy+Math.sin(driftAngle)*dist;
+    const bloomSize=orb.size*S*(0.55+breathT*0.85);
+    const pulse=Math.sin(time*0.4*speedMult+orb.pulsePhase)*0.04;
+    const alpha=orb.alpha*(0.45+breathT*0.55)+pulse;
+    const g=ctx.createRadialGradient(px-bloomSize*.15,py-bloomSize*.12,bloomSize*.02,px,py,bloomSize);
+    g.addColorStop(0,`hsla(${orb.h},${orb.s}%,${orb.l+10}%,${Math.min(alpha,.92)})`);
     g.addColorStop(0.35,`hsla(${orb.h+8},${orb.s-5}%,${orb.l}%,${alpha*0.7})`);
     g.addColorStop(0.7,`hsla(${orb.h+15},${orb.s-10}%,${orb.l-5}%,${alpha*0.3})`);
     g.addColorStop(1,'transparent');
-
-    ctx.beginPath();
-    ctx.arc(px,py,bloomSize,0,Math.PI*2);
-    ctx.fillStyle=g;
-    ctx.fill();
+    ctx.beginPath();ctx.arc(px,py,bloomSize,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
   });
 
-  // Subtle central glow that brightens with breath
-  const coreSize = S*(0.12+breathT*0.18);
-  const cg = ctx.createRadialGradient(cx,cy,0,cx,cy,coreSize);
+  // Central glow
+  const coreSize=S*(0.12+breathT*0.18);
+  const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,coreSize);
   cg.addColorStop(0,`rgba(240,235,255,${0.06+breathT*0.12})`);
   cg.addColorStop(0.5,`rgba(200,185,240,${0.03+breathT*0.06})`);
   cg.addColorStop(1,'transparent');
-  ctx.beginPath(); ctx.arc(cx,cy,coreSize,0,Math.PI*2);
-  ctx.fillStyle=cg; ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,coreSize,0,Math.PI*2);ctx.fillStyle=cg;ctx.fill();
+
+  // Tingle always on — radial ripples that intensify on hold
+  drawAuroraTingle(time);
 }
 
-// ── OTHER AESTHETICS ─────────────────────────────────────────
 function filPt(f,t,scale,time){
   const angle=f.baseAngle+f.jitter+Math.sin(time*.28+f.wavPhase)*.035;
   const wave=Math.sin(t*Math.PI*f.wavFreq+f.wavPhase+time*.45)*f.wavAmp*t;
@@ -314,9 +380,9 @@ function drawFilaments(scale,time){
     ctx.strokeStyle=`hsla(${sh},52%,88%,.18)`;ctx.lineWidth=.65;ctx.stroke();
     f.orbs.forEach(orb=>{
       const p=pts[Math.min(Math.floor(orb.t*42),pts.length-1)];
-      const pulse=1+Math.sin(time*1.1*speedMult+orb.phase)*.1;
+      const pulse=1+Math.sin(time*1.1+orb.phase)*.1;
       const sr=orb.size*pulse*(scale*.45+.55);
-      const shimmer=Math.sin(time*1.8*speedMult+orb.phase)*.5+.5;
+      const shimmer=Math.sin(time*1.8+orb.phase)*.5+.5;
       const oh=orb.hue+shimmer*38;
       const og=ctx.createRadialGradient(p.x-sr*.3,p.y-sr*.3,sr*.04,p.x,p.y,sr);
       og.addColorStop(0,`hsla(${oh+18},88%,97%,.94)`);
@@ -339,18 +405,17 @@ function drawOrb(scale,time){
   const sweep=ctx.createLinearGradient(0,H*.6,W,H);
   sweep.addColorStop(0,'rgba(140,100,200,.05)');sweep.addColorStop(.3,'rgba(100,180,220,.04)');
   sweep.addColorStop(.6,'rgba(220,160,120,.04)');sweep.addColorStop(.85,'rgba(100,200,180,.04)');
-  sweep.addColorStop(1,'rgba(180,120,200,.03)');
-  ctx.fillStyle=sweep;ctx.fillRect(0,0,W,H);
+  sweep.addColorStop(1,'rgba(180,120,200,.03)');ctx.fillStyle=sweep;ctx.fillRect(0,0,W,H);
   for(let i=0;i<52;i++){
-    const angle=(i/52)*Math.PI*2+time*.016*speedMult;
+    const angle=(i/52)*Math.PI*2+time*.016;
     const len=(.44+Math.sin(i*.7+time*.1)*.14)*R*scale;
-    const wav=Math.sin(i*.4+time*.18*speedMult)*.06,perp=angle+Math.PI/2;
+    const wav=Math.sin(i*.4+time*.18)*.06,perp=angle+Math.PI/2;
     ctx.beginPath();ctx.moveTo(cx,cy);
     ctx.quadraticCurveTo(cx+Math.cos(angle)*len*.5+Math.cos(perp)*wav*R,cy+Math.sin(angle)*len*.5+Math.sin(perp)*wav*R,cx+Math.cos(angle)*len+Math.cos(perp)*wav*1.5*R,cy+Math.sin(angle)*len+Math.sin(perp)*wav*1.5*R);
     ctx.strokeStyle=Math.cos(angle)>.2?'rgba(230,210,185,.11)':'rgba(190,215,230,.09)';ctx.lineWidth=.5;ctx.stroke();
   }
   pearls.forEach(p=>{
-    const drift=Math.sin(time*p.speed+p.phase)*.016*speedMult;
+    const drift=Math.sin(time*p.speed+p.phase)*.016;
     const angle=p.angle+drift,dist=p.ring*R*scale;
     const px=cx+Math.cos(angle)*dist,py=cy+Math.sin(angle)*dist;
     const pulse=1+Math.sin(time*p.speed*1.4+p.phase)*.07;
@@ -360,11 +425,12 @@ function drawOrb(scale,time){
     else{pg.addColorStop(0,'rgba(252,255,255,.97)');pg.addColorStop(.2,'rgba(225,235,245,.88)');pg.addColorStop(.55,'rgba(195,215,230,.48)');pg.addColorStop(.85,'rgba(175,200,220,.16)');}
     pg.addColorStop(1,'transparent');
     ctx.beginPath();ctx.arc(px,py,sr,0,Math.PI*2);ctx.fillStyle=pg;ctx.fill();
-    const shimmer=Math.sin(time*1.6*speedMult+p.phase)*.5+.5;
+    const shimmer=Math.sin(time*1.6+p.phase)*.5+.5;
     ctx.strokeStyle=`hsla(${p.hue+shimmer*45},70%,88%,${.14+shimmer*.17})`;ctx.lineWidth=.5;ctx.stroke();
     ctx.beginPath();ctx.arc(px-sr*.32,py-sr*.35,sr*.13,0,Math.PI*2);
     ctx.fillStyle=`rgba(255,255,255,${.72+shimmer*.22})`;ctx.fill();
   });
+  drawOrbTingle(scale,time);
 }
 
 function drawFibers(scale,time){
@@ -373,27 +439,28 @@ function drawFibers(scale,time){
   wg.addColorStop(.65,'rgba(95,128,148,.04)');wg.addColorStop(1,'transparent');
   ctx.fillStyle=wg;ctx.beginPath();ctx.arc(cx,cy,R*scale*1.5,0,Math.PI*2);ctx.fill();
   fibers.forEach(f=>{
-    const sway=Math.sin(time*.2*speedMult+f.wavPhase)*f.wavAmp;
+    const sway=Math.sin(time*.2+f.wavPhase)*f.wavAmp;
     const angle=f.angle+sway,len=f.len*R*scale,perp=angle+Math.PI/2;
     ctx.beginPath();ctx.moveTo(cx,cy);
     for(let i=1;i<=24;i++){
-      const t=i/24,curve=Math.sin(t*Math.PI*f.wavFreq+f.wavPhase+time*.24*speedMult)*f.wavAmp*t*R*.75;
+      const t=i/24,curve=Math.sin(t*Math.PI*f.wavFreq+f.wavPhase+time*.24)*f.wavAmp*t*R*.75;
       ctx.lineTo(cx+Math.cos(angle)*t*len+Math.cos(perp)*curve,cy+Math.sin(angle)*t*len+Math.sin(perp)*curve);
     }
-    const fade=Math.max(0,1-f.len*scale*.28),pulse=1+Math.sin(time*.65*speedMult+f.phase)*.11;
+    const fade=Math.max(0,1-f.len*scale*.28),pulse=1+Math.sin(time*.65+f.phase)*.11;
     ctx.strokeStyle=`hsla(${f.hue},${f.sat}%,76%,${f.alpha*pulse*(fade*.38+.62)})`;ctx.lineWidth=f.width;ctx.stroke();
   });
   bokeh.slice(0,48).forEach(b=>{
-    const pulse=1+Math.sin(time*b.speed*speedMult+b.phase)*.42;
+    const pulse=1+Math.sin(time*b.speed+b.phase)*.42;
     const bx=cx+(b.x-.5)*W*1.25,by=cy+(b.y-.5)*H*1.25,br=b.r*.5*pulse;
     const h=b.phase*20%50+10,g=ctx.createRadialGradient(bx,by,0,bx,by,br);
     g.addColorStop(0,`hsla(${h},82%,93%,${b.a*2})`);g.addColorStop(.45,`hsla(${h+22},68%,87%,${b.a*.7})`);g.addColorStop(1,'transparent');
     ctx.beginPath();ctx.arc(bx,by,br,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
   });
+  drawFiberTingle(scale,time);
 }
 
 function drawCore(scale,time,warm){
-  const cr=18*scale,pulse=1+Math.sin(time*1.7*speedMult)*.07,h=warm?34:198;
+  const cr=18*scale,pulse=1+Math.sin(time*1.7)*.07,h=warm?34:198;
   [[R*.48*scale,`hsla(${h},58%,84%,.05)`],[R*.26*scale,`hsla(${h},64%,90%,.09)`],[cr*2.8*pulse,`hsla(${h},78%,95%,.21)`]].forEach(([r,col])=>{
     const g=ctx.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,col);g.addColorStop(1,'transparent');
     ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
@@ -403,7 +470,8 @@ function drawCore(scale,time,warm){
   else{cg.addColorStop(0,'rgba(255,253,255,.98)');cg.addColorStop(.3,'rgba(218,233,247,.85)');cg.addColorStop(.7,'rgba(178,208,233,.42)');cg.addColorStop(1,'transparent');}
   ctx.beginPath();ctx.arc(cx,cy,cr*pulse,0,Math.PI*2);ctx.fillStyle=cg;ctx.fill();
   for(let i=0;i<6;i++){
-    const ga=(i/6)*Math.PI*2+time*.45*speedMult,gr=(2.5+Math.random()*6)*scale;
+    const ga=(i/6)*Math.PI*2+time*.45;
+    const gr=(2.5+Math.random()*6)*scale;
     ctx.beginPath();ctx.arc(cx+Math.cos(ga)*gr,cy+Math.sin(ga)*gr,.6+Math.random(),0,Math.PI*2);
     ctx.fillStyle=`rgba(255,255,255,${.45+Math.random()*.42})`;ctx.fill();
   }
@@ -411,10 +479,13 @@ function drawCore(scale,time,warm){
 
 function drawArc(){
   if(!running)return;
-  const arcR=R*breathScale*1.16+10;
+  const arcR=R*1.18+8; // fixed to R, not breathScale — no clipping
   ctx.beginPath();ctx.arc(cx,cy,arcR,-Math.PI/2,-Math.PI/2+phaseProg*Math.PI*2);
   const h=breathPhase==='inhale'?192:breathPhase==='exhale'?218:200;
-  ctx.strokeStyle=`hsla(${h},62%,86%,.35)`;ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle=`hsla(${h},62%,86%,.32)`;ctx.lineWidth=1;ctx.stroke();
+  // track ring (dim full circle)
+  ctx.beginPath();ctx.arc(cx,cy,arcR,0,Math.PI*2);
+  ctx.strokeStyle=`hsla(${h},40%,70%,.08)`;ctx.lineWidth=1;ctx.stroke();
 }
 
 // ── MAIN LOOP ────────────────────────────────────────────────
@@ -422,7 +493,7 @@ function frame(now){
   requestAnimationFrame(frame);
   const rawDt=Math.min((now-lastTime)/1000,.05);
   lastTime=now;
-  if(!paused)elapsed+=rawDt*speedMult;
+  if(!paused)elapsed+=rawDt;
 
   if(running&&!paused){
     phaseProg+=rawDt/phaseTime;
@@ -432,7 +503,6 @@ function frame(now){
 
   breathScale=getBreathScale();
 
-  // Aurora handles its own background; others need the dark fill
   if(aesthetic!==0){
     ctx.fillStyle=aesthetic===3?'rgba(9,13,20,.9)':'rgba(7,11,20,.9)';
     ctx.fillRect(0,0,W,H);
@@ -440,21 +510,22 @@ function frame(now){
 
   if(aesthetic===0){
     drawAurora(breathScale,elapsed);
-    // subtle progress arc in aurora mode — white/lavender
     if(running){
-      const arcR=Math.min(W,H)*.42;
+      const arcR=Math.min(W,H)*.44;
       ctx.beginPath();ctx.arc(cx,cy,arcR,-Math.PI/2,-Math.PI/2+phaseProg*Math.PI*2);
-      ctx.strokeStyle=`rgba(220,210,240,0.2)`;ctx.lineWidth=1;ctx.stroke();
+      ctx.strokeStyle='rgba(220,210,240,.18)';ctx.lineWidth=1;ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,arcR,0,Math.PI*2);
+      ctx.strokeStyle='rgba(220,210,240,.05)';ctx.lineWidth=1;ctx.stroke();
     }
   } else if(aesthetic===1){
-    drawBokeh(elapsed);drawOrb(breathScale,elapsed);drawCore(breathScale,elapsed,false);
+    drawBokeh(elapsed);drawOrb(breathScale,elapsed);drawCore(breathScale,elapsed,false);drawArc();
   } else if(aesthetic===2){
-    drawBokeh(elapsed);drawPetals(breathScale,elapsed);drawFilaments(breathScale,elapsed);drawCore(breathScale,elapsed,false);
+    drawBokeh(elapsed);drawPetals(breathScale,elapsed);drawFilaments(breathScale,elapsed);
+    drawFilamentTingle(breathScale,elapsed);
+    drawCore(breathScale,elapsed,false);drawArc();
   } else {
-    drawFibers(breathScale,elapsed);drawCore(breathScale,elapsed,true);
+    drawFibers(breathScale,elapsed);drawCore(breathScale,elapsed,true);drawArc();
   }
-
-  if(aesthetic!==0)drawArc();
 }
 requestAnimationFrame(frame);
 
