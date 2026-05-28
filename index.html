@@ -54,7 +54,7 @@ const canvas=document.getElementById('c');
 const ctx=canvas.getContext('2d');
 let W,H,cx,cy,R;
 let aesthetic=0,timeSec=4,soundOn=false,audioCtx=null;
-const SCALE_MIN=0.55,SCALE_MAX=1.52;
+const SCALE_MIN=0.55,SCALE_MAX=1.85;
 function easeInOutSine(t){return -(Math.cos(Math.PI*t)-1)/2;}
 
 function resize(){
@@ -80,7 +80,7 @@ function rebuildScene(){
   }));
 
   // ORB (merged filament+orb) — arms with pearl clusters
-  filaments=Array.from({length:28},(_,i)=>({
+  filaments=Array.from({length:34},(_,i)=>({
     baseAngle:(i/28)*Math.PI*2,
     jitter:(Math.random()-.5)*.15,
     len:.48+Math.random()*.48,
@@ -89,9 +89,9 @@ function rebuildScene(){
     wavPhase:Math.random()*Math.PI*2,
     hue:175+Math.random()*85,
     // pearls along arm: more dense, varying sizes
-    pearls:Array.from({length:5},(_,j)=>({
-      t:.12+(j/4)*.76,
-      size: j===0?4+Math.random()*10 : j<3?2+Math.random()*7:1+Math.random()*4,
+    pearls:Array.from({length:6},(_,j)=>({
+      t:.10+(j/5)*.80,
+      size: j===0?5+Math.random()*12 : j<3?2.5+Math.random()*8:1+Math.random()*5,
       phase:Math.random()*Math.PI*2,
       hue:188+Math.random()*80,
       warmTint:Math.random()>.55
@@ -103,19 +103,19 @@ function rebuildScene(){
     hue:175+Math.random()*75,phase:Math.random()*Math.PI*2
   }));
   // core pearl cluster
-  pearls=Array.from({length:55},()=>{
-    const ring=Math.random()*.22;
+  pearls=Array.from({length:90},()=>{
+    const ring=Math.random()*.32;
     return{ring,angle:Math.random()*Math.PI*2,
-      size:1.5+Math.random()*11,phase:Math.random()*Math.PI*2,
+      size:1.5+Math.random()*13,phase:Math.random()*Math.PI*2,
       hue:190+Math.random()*60,warmTint:Math.random()>.6,speed:.18+Math.random()*.3};
   });
 
   // FIBER
-  fibers=Array.from({length:280},()=>{
+  fibers=Array.from({length:320},()=>{
     const angle=Math.random()*Math.PI*2;
     const warm=Math.abs(Math.cos(angle+.4))>.35;
-    return{angle,warm,len:.4+Math.random()*.7,
-      wavAmp:(Math.random()-.5)*.13,wavFreq:.7+Math.random()*2.8,
+    return{angle,warm,len:.45+Math.random()*.85,
+      wavAmp:(Math.random()-.5)*.32,wavFreq:.7+Math.random()*2.8,
       wavPhase:Math.random()*Math.PI*2,
       hue:warm?25+Math.random()*25:190+Math.random()*38,
       sat:warm?48+Math.random()*28:16+Math.random()*24,
@@ -348,10 +348,12 @@ function drawGeometric(scale,time){
   const glow=0.55+breathT*0.45;
 
   function glowLine(alpha,hue,width){
-    ctx.strokeStyle=`hsla(${hue},75%,82%,${alpha})`;
-    ctx.lineWidth=width;ctx.stroke();
-    ctx.strokeStyle=`hsla(${hue+20},90%,96%,${alpha*0.35})`;
-    ctx.lineWidth=width*2.5;ctx.stroke();
+    // wide soft bloom
+    ctx.strokeStyle=`hsla(${hue},80%,72%,${alpha*0.5})`;ctx.lineWidth=width*8;ctx.stroke();
+    // mid glow
+    ctx.strokeStyle=`hsla(${hue+12},88%,88%,${alpha*0.82})`;ctx.lineWidth=width*2.8;ctx.stroke();
+    // sharp bright core line
+    ctx.strokeStyle=`hsla(${hue+22},96%,98%,${Math.min(alpha*1.25,1)})`;ctx.lineWidth=width*0.7;ctx.stroke();
   }
 
   // Rotation: inner rings rotate one way, outer the other
@@ -362,7 +364,7 @@ function drawGeometric(scale,time){
   // ── concentric circles ──
   [0.95,0.72,0.50,0.30].forEach((r,i)=>{
     ctx.beginPath();ctx.arc(cx,cy,baseR*r,0,Math.PI*2);
-    glowLine(0.08*glow+i*0.02,hueBase+i*15,0.6);
+    glowLine(0.18*glow+i*0.04,hueBase+i*15,0.6);
   });
 
   // ── outer 12-petal ring ──
@@ -375,7 +377,7 @@ function drawGeometric(scale,time){
     const cx2=Math.cos(a-Math.PI/12)*r2,cy2=Math.sin(a-Math.PI/12)*r2;
     ctx.beginPath();ctx.moveTo(ax,ay);ctx.quadraticCurveTo(bx,by,0,0);
     ctx.moveTo(ax,ay);ctx.quadraticCurveTo(cx2,cy2,0,0);
-    glowLine(0.09*glow,hueBase+20,0.5);
+    glowLine(0.20*glow,hueBase+20,0.5);
   }
   ctx.restore();
 
@@ -387,7 +389,7 @@ function drawGeometric(scale,time){
     i===0?ctx.moveTo(Math.cos(a)*baseR*.72,Math.sin(a)*baseR*.72)
          :ctx.lineTo(Math.cos(a)*baseR*.72,Math.sin(a)*baseR*.72);
   }
-  ctx.closePath();glowLine(0.12*glow,hueBase,0.7);
+  ctx.closePath();glowLine(0.26*glow,hueBase,0.7);
   // star of david — two triangles
   for(let t=0;t<2;t++){
     ctx.beginPath();
@@ -396,7 +398,7 @@ function drawGeometric(scale,time){
       i===0?ctx.moveTo(Math.cos(a)*baseR*.72,Math.sin(a)*baseR*.72)
            :ctx.lineTo(Math.cos(a)*baseR*.72,Math.sin(a)*baseR*.72);
     }
-    ctx.closePath();glowLine(0.14*glow,hueBase+t*25,0.65);
+    ctx.closePath();glowLine(0.30*glow,hueBase+t*25,0.65);
   }
   ctx.restore();
 
@@ -407,7 +409,7 @@ function drawGeometric(scale,time){
     const r=baseR*0.50;
     ctx.beginPath();
     ctx.arc(Math.cos(a)*r/2,Math.sin(a)*r/2,r/2,0,Math.PI*2);
-    glowLine(0.10*glow,hueBase+i*8,0.55);
+    glowLine(0.22*glow,hueBase+i*8,0.55);
   }
   ctx.restore();
 
@@ -419,7 +421,7 @@ function drawGeometric(scale,time){
     i===0?ctx.moveTo(Math.cos(a)*baseR*.50,Math.sin(a)*baseR*.50)
          :ctx.lineTo(Math.cos(a)*baseR*.50,Math.sin(a)*baseR*.50);
   }
-  ctx.closePath();glowLine(0.11*glow,hueBase+40,0.6);
+  ctx.closePath();glowLine(0.24*glow,hueBase+40,0.6);
   // inner diamond
   ctx.beginPath();
   for(let i=0;i<4;i++){
@@ -427,25 +429,25 @@ function drawGeometric(scale,time){
     i===0?ctx.moveTo(Math.cos(a)*baseR*.30,Math.sin(a)*baseR*.30)
          :ctx.lineTo(Math.cos(a)*baseR*.30,Math.sin(a)*baseR*.30);
   }
-  ctx.closePath();glowLine(0.13*glow,hueBase+55,0.6);
+  ctx.closePath();glowLine(0.28*glow,hueBase+55,0.6);
   ctx.restore();
 
   // ── Seed of Life: center + 6 surrounding circles ──
   ctx.save();ctx.translate(cx,cy);ctx.rotate(rotA*0.5);
   const seedR=baseR*0.30;
   ctx.beginPath();ctx.arc(0,0,seedR,0,Math.PI*2);
-  glowLine(0.14*glow,hueBase+10,0.6);
+  glowLine(0.30*glow,hueBase+10,0.6);
   for(let i=0;i<6;i++){
     const a=(i/6)*Math.PI*2;
     ctx.beginPath();ctx.arc(Math.cos(a)*seedR,Math.sin(a)*seedR,seedR,0,Math.PI*2);
-    glowLine(0.10*glow,hueBase+i*12,0.55);
+    glowLine(0.22*glow,hueBase+i*12,0.55);
   }
   ctx.restore();
 
   // ── central dot ──
   const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,baseR*0.06);
-  cg.addColorStop(0,`hsla(${hueBase+10},90%,98%,${0.9*glow})`);
-  cg.addColorStop(.5,`hsla(${hueBase},75%,85%,${0.5*glow})`);
+  cg.addColorStop(0,`hsla(${hueBase+10},90%,98%,${0.98*glow})`);
+  cg.addColorStop(.5,`hsla(${hueBase},75%,85%,${0.7*glow})`);
   cg.addColorStop(1,'transparent');
   ctx.beginPath();ctx.arc(cx,cy,baseR*0.06,0,Math.PI*2);ctx.fillStyle=cg;ctx.fill();
 
@@ -469,11 +471,11 @@ function drawFibers(scale,time){
   wg.addColorStop(.65,'rgba(95,128,148,.04)');wg.addColorStop(1,'transparent');
   ctx.fillStyle=wg;ctx.beginPath();ctx.arc(cx,cy,R*scale*1.5,0,Math.PI*2);ctx.fill();
   fibers.forEach(f=>{
-    const sway=Math.sin(time*.2+f.wavPhase)*f.wavAmp;
+    const sway=Math.sin(time*.35+f.wavPhase)*f.wavAmp*1.4;
     const angle=f.angle+sway,len=f.len*R*scale,perp=angle+Math.PI/2;
     ctx.beginPath();ctx.moveTo(cx,cy);
     for(let i=1;i<=24;i++){
-      const t=i/24,curve=Math.sin(t*Math.PI*f.wavFreq+f.wavPhase+time*.24)*f.wavAmp*t*R*.75;
+      const t=i/24,curve=Math.sin(t*Math.PI*f.wavFreq+f.wavPhase+time*.28)*f.wavAmp*(t*t*2.2+t*0.5)*R*1.1;
       ctx.lineTo(cx+Math.cos(angle)*t*len+Math.cos(perp)*curve,cy+Math.sin(angle)*t*len+Math.sin(perp)*curve);
     }
     const fade=Math.max(0,1-f.len*scale*.28),pulse=1+Math.sin(time*.65+f.phase)*.11;
