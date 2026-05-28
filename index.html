@@ -11,60 +11,57 @@ html,body { width:100%; height:100%; overflow:hidden; background:#080c12; font-f
 canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
 
 #menu { position:absolute; top:max(22px, env(safe-area-inset-top, 22px)); left:24px; z-index:10; user-select:none; }
-.menu-item { font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:rgba(180,175,195,.42); cursor:pointer; padding:5px 0; transition:color .2s; line-height:1.9; }
-.menu-item:hover,.menu-item:active { color:rgba(210,205,225,.75); }
+.menu-item { font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:rgba(180,175,195,.38); cursor:pointer; padding:5px 0; transition:color .2s; line-height:1.9; }
+.menu-item:hover,.menu-item:active { color:rgba(210,205,225,.7); }
 .sub-items { display:none; padding-left:14px; }
 .sub-items.open { display:block; }
-.sub-item { font-size:11px; letter-spacing:.15em; text-transform:uppercase; color:rgba(160,155,180,.38); cursor:pointer; padding:5px 0; transition:color .2s; line-height:1.9; }
-.sub-item:hover,.sub-item:active { color:rgba(200,195,220,.72); }
-.sub-item.selected { color:rgba(210,205,230,.72); }
+.sub-item { font-size:10px; letter-spacing:.15em; text-transform:uppercase; color:rgba(160,155,180,.32); cursor:pointer; padding:5px 0; transition:color .2s; line-height:1.9; }
+.sub-item:hover,.sub-item:active { color:rgba(200,195,220,.68); }
+.sub-item.selected { color:rgba(210,205,230,.65); }
 .sub-item.selected::before { content:'· '; }
 
-/* Phase label and count — lower third, never overlapping organism */
-#center-ui {
-  position:absolute;
-  bottom:max(100px, env(safe-area-inset-bottom, 100px));
-  left:0; width:100%;
-  display:flex; flex-direction:column; align-items:center;
-  pointer-events:none; gap:6px;
-}
+/* Phase label — lower third, clear of organism */
 #phase-label {
+  position:absolute;
+  bottom:max(88px, calc(env(safe-area-inset-bottom, 0px) + 88px));
+  left:0; width:100%; text-align:center;
   font-size:10px; letter-spacing:.5em; text-transform:uppercase;
-  color:rgba(210,205,230,.35); min-height:14px; transition:opacity .6s;
+  color:rgba(210,205,230,.3); pointer-events:none;
+  transition:opacity .5s;
 }
 #count-display {
-  font-size:42px; color:rgba(225,220,240,.22);
-  font-weight:200; min-height:52px; letter-spacing:-.02em;
+  position:absolute;
+  bottom:max(52px, calc(env(safe-area-inset-bottom, 0px) + 52px));
+  left:0; width:100%; text-align:center;
+  font-size:38px; color:rgba(225,220,240,.18);
+  font-weight:200; pointer-events:none; letter-spacing:-.02em;
 }
 
-#bottom-bar {
-  position:absolute; bottom:0; left:0; right:0;
-  padding-bottom:max(28px, env(safe-area-inset-bottom, 28px));
-  padding-left:24px; padding-right:24px; padding-top:12px;
-  display:flex; justify-content:space-between; align-items:flex-end;
-  pointer-events:none;
+/* Single centered action button */
+#action-btn {
+  position:absolute;
+  bottom:max(22px, env(safe-area-inset-bottom, 22px));
+  left:50%; transform:translateX(-50%);
+  font-size:11px; letter-spacing:.28em; text-transform:uppercase;
+  color:rgba(185,180,205,.42); cursor:pointer; background:none; border:none;
+  font-family:'Georgia',serif; padding:14px 32px;
+  transition:color .3s, opacity .3s; -webkit-appearance:none;
+  white-space:nowrap;
 }
-#begin-btn,#pause-btn {
-  font-size:12px; letter-spacing:.22em; text-transform:uppercase;
-  color:rgba(175,170,195,.42); cursor:pointer; background:none; border:none;
-  font-family:'Georgia',serif; pointer-events:all; padding:12px 0;
-  transition:color .2s; -webkit-appearance:none;
-}
-#begin-btn:hover,#begin-btn:active { color:rgba(210,205,230,.78); }
-#pause-btn { color:rgba(175,170,195,.32); display:none; }
-#pause-btn:hover,#pause-btn:active { color:rgba(210,205,230,.68); }
+#action-btn:hover,#action-btn:active { color:rgba(220,215,238,.75); }
 
 @media(max-width:480px){
-  #count-display{font-size:36px;}
-  #phase-label{font-size:10px;}
-  .menu-item{font-size:11px;padding:6px 0;}
+  .menu-item{font-size:10px;padding:6px 0;}
   .sub-item{padding:6px 0;}
+  #count-display{font-size:32px;}
+  #action-btn{font-size:10px;}
 }
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="c"></canvas>
+
   <div id="menu">
     <div class="menu-item" id="lbl-aesthetic">aesthetic</div>
     <div class="sub-items" id="sub-aesthetic">
@@ -82,46 +79,37 @@ canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
     <div class="menu-item" id="lbl-sound">sound &nbsp;<span id="sound-state">off</span></div>
   </div>
 
-  <div id="center-ui">
-    <div id="phase-label"></div>
-    <div id="count-display"></div>
-  </div>
-
-  <div id="bottom-bar">
-    <button id="begin-btn">begin</button>
-    <button id="pause-btn">pause</button>
-  </div>
+  <div id="phase-label"></div>
+  <div id="count-display"></div>
+  <button id="action-btn">begin</button>
 </div>
 
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 let W, H, cx, cy, R;
-let aesthetic = 0, timeSec = 4, soundOn = false, audioCtx = null;
+let aesthetic=0, timeSec=4, soundOn=false, audioCtx=null;
 
-const SCALE_MIN = 0.55;
-const SCALE_MAX = 1.52;
+const SCALE_MIN=0.55, SCALE_MAX=1.52;
 function easeInOutSine(t){ return -(Math.cos(Math.PI*t)-1)/2; }
 
 function resize(){
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-  cx = W/2; cy = H/2;
-  // Ring capped so it never exceeds ~40% of the shortest dimension
-  R = Math.min(W, H) * (W < 480 ? 0.30 : 0.28);
+  W=canvas.width=window.innerWidth;
+  H=canvas.height=window.innerHeight;
+  cx=W/2; cy=H/2;
+  R=Math.min(W,H)*(W<480?0.28:0.26);
   rebuildScene();
 }
 
 let auroraOrbs=[], filaments=[], bokeh=[], petals=[], fibers=[], pearls=[];
 
 function rebuildScene(){
-  // AURORA
   const aC=[
     {h:270,s:55,l:65},{h:280,s:45,l:72},{h:255,s:50,l:70},
     {h:195,s:40,l:75},{h:290,s:35,l:80},{h:240,s:30,l:82},
     {h:310,s:40,l:68},{h:185,s:45,l:70},
   ];
-  auroraOrbs = aC.map((c,i)=>({
+  auroraOrbs=aC.map((c,i)=>({
     angle:(i/aC.length)*Math.PI*2+Math.random()*.4,
     baseR:.18+Math.random()*.28,
     driftSpeed:.06+Math.random()*.08,
@@ -133,8 +121,7 @@ function rebuildScene(){
     pulsePhase:Math.random()*Math.PI*2,
   }));
 
-  // FILAMENT
-  filaments = Array.from({length:32},(_,i)=>({
+  filaments=Array.from({length:32},(_,i)=>({
     baseAngle:(i/32)*Math.PI*2,
     jitter:(Math.random()-.5)*.2,
     len:.5+Math.random()*.5,
@@ -147,14 +134,13 @@ function rebuildScene(){
       phase:Math.random()*Math.PI*2,hue:165+Math.random()*100
     }))
   }));
-  petals = Array.from({length:8},(_,i)=>({
+  petals=Array.from({length:8},(_,i)=>({
     angle:(i/8)*Math.PI*2+Math.random()*.25,
     len:.5+Math.random()*.38,width:.16+Math.random()*.13,
     hue:175+Math.random()*75,phase:Math.random()*Math.PI*2
   }));
 
-  // ORB
-  pearls = Array.from({length:200},()=>{
+  pearls=Array.from({length:200},()=>{
     const r=Math.random();
     const ring=r<.4?Math.random()*.28:r<.75?.28+Math.random()*.32:.6+Math.random()*.42;
     return{ring,angle:Math.random()*Math.PI*2,
@@ -163,8 +149,7 @@ function rebuildScene(){
       warmTint:Math.random()>.6,speed:.15+Math.random()*.35};
   });
 
-  // FIBER
-  fibers = Array.from({length:280},()=>{
+  fibers=Array.from({length:280},()=>{
     const angle=Math.random()*Math.PI*2;
     const warm=Math.abs(Math.cos(angle+.4))>.35;
     return{angle,warm,len:.4+Math.random()*.7,
@@ -176,23 +161,30 @@ function rebuildScene(){
       phase:Math.random()*Math.PI*2};
   }).sort((a,b)=>a.warm-b.warm);
 
-  bokeh = Array.from({length:65},()=>({
+  bokeh=Array.from({length:65},()=>({
     x:Math.random(),y:Math.random(),r:3+Math.random()*18,
     a:.028+Math.random()*.085,hue:160+Math.random()*130,
     phase:Math.random()*Math.PI*2,speed:.18+Math.random()*.38
   }));
 }
 
-// breathing state
+// ── STATE ────────────────────────────────────────────────────
 let breathScale=SCALE_MIN,breathPhase='idle',phaseProg=0,phaseTime=4;
 let scaleAtPhaseStart=SCALE_MIN;
 let running=false,paused=false,currentPhaseIdx=0;
 let speedMult=1,elapsed=0,lastTime=performance.now();
 
+// btn states: 'begin' | 'pause' | 'resume'
+let btnState='begin';
+
 const phaseEl=document.getElementById('phase-label');
 const countEl=document.getElementById('count-display');
-const pauseBtn=document.getElementById('pause-btn');
-const beginBtn=document.getElementById('begin-btn');
+const actionBtn=document.getElementById('action-btn');
+
+function setBtn(state){
+  btnState=state;
+  actionBtn.textContent=state;
+}
 
 function playTone(freq,dur,atk,dec){
   if(!soundOn||!audioCtx)return;
@@ -206,19 +198,27 @@ function playTone(freq,dur,atk,dec){
 
 function startPhase(idx){
   currentPhaseIdx=idx%4;
-  breathPhase=['inhale','hold','exhale','hold'][currentPhaseIdx];
-  phaseProg=0;phaseTime=timeSec;
-  if(breathPhase==='inhale')     {scaleAtPhaseStart=SCALE_MIN;speedMult=1;playTone(396,.9,.25,.3);}
-  else if(breathPhase==='exhale'){scaleAtPhaseStart=SCALE_MAX;speedMult=1;playTone(264,.9,.1,.4);}
-  else if(currentPhaseIdx===1)   {scaleAtPhaseStart=SCALE_MAX;speedMult=0.12;}
-  else                           {scaleAtPhaseStart=SCALE_MIN;speedMult=0.12;}
+  // Clean phase names — just 'hold' for both holds
+  const phaseNames=['inhale','hold','exhale','hold'];
+  breathPhase=phaseNames[currentPhaseIdx];
+  phaseProg=0; phaseTime=timeSec;
+
+  if(currentPhaseIdx===0)     {scaleAtPhaseStart=SCALE_MIN;speedMult=1;playTone(396,.9,.25,.3);}
+  else if(currentPhaseIdx===2){scaleAtPhaseStart=SCALE_MAX;speedMult=1;playTone(264,.9,.1,.4);}
+  else if(currentPhaseIdx===1){scaleAtPhaseStart=SCALE_MAX;speedMult=0.12;}
+  else                        {scaleAtPhaseStart=SCALE_MIN;speedMult=0.12;}
+
+  // Set label cleanly — clear first, then set after short delay to avoid bleed
   phaseEl.style.opacity='0';
-  setTimeout(()=>{phaseEl.textContent=breathPhase;phaseEl.style.opacity='1';},220);
+  setTimeout(()=>{
+    phaseEl.textContent=breathPhase;
+    phaseEl.style.opacity='1';
+  },180);
 }
 
 function getBreathScale(){
-  if(breathPhase==='inhale') return SCALE_MIN+(SCALE_MAX-SCALE_MIN)*easeInOutSine(phaseProg);
-  if(breathPhase==='exhale') return SCALE_MAX+(SCALE_MIN-SCALE_MAX)*easeInOutSine(phaseProg);
+  if(currentPhaseIdx===0) return SCALE_MIN+(SCALE_MAX-SCALE_MIN)*easeInOutSine(phaseProg);
+  if(currentPhaseIdx===2) return SCALE_MAX+(SCALE_MIN-SCALE_MAX)*easeInOutSine(phaseProg);
   return scaleAtPhaseStart+Math.sin(elapsed*1.1)*0.007;
 }
 
@@ -226,92 +226,79 @@ function resetAll(){
   running=false;paused=false;
   breathPhase='idle';breathScale=SCALE_MIN;
   phaseProg=0;speedMult=1;
-  phaseEl.textContent='';countEl.textContent='';
-  pauseBtn.style.display='none';pauseBtn.textContent='pause';
-  beginBtn.style.opacity='1';beginBtn.style.pointerEvents='all';
+  phaseEl.style.opacity='0';
+  setTimeout(()=>{phaseEl.textContent='';},300);
+  countEl.textContent='';
+  setBtn('begin');
 }
 
-// ── TINGLE helpers — alive feeling at center during hold ─────
-
-// Aurora: soft radial pulses emanating outward from center
+// ── TINGLE SYSTEMS ───────────────────────────────────────────
 function drawAuroraTingle(time){
-  const numRings=4;
-  for(let i=0;i<numRings;i++){
-    const offset=(i/numRings)*Math.PI*2;
-    const t=((time*0.35+offset)%(Math.PI*2))/(Math.PI*2);
-    const r=t*Math.min(W,H)*0.38;
-    const a=(1-t)*0.06;
+  for(let i=0;i<4;i++){
+    const offset=(i/4)*Math.PI*2;
+    const t=((time*0.32+offset)%(Math.PI*2))/(Math.PI*2);
+    const r=t*Math.min(W,H)*0.36;
+    const a=(1-t)*0.055;
     ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
-    ctx.strokeStyle=`rgba(210,195,255,${a})`;ctx.lineWidth=1.2;ctx.stroke();
+    ctx.strokeStyle=`rgba(200,185,255,${a})`;ctx.lineWidth=1;ctx.stroke();
   }
 }
 
-// Orb: sparkling motes at center that scatter and fade
 function drawOrbTingle(scale,time){
-  const count=18;
-  for(let i=0;i<count;i++){
-    const a=(i/count)*Math.PI*2+time*0.4;
+  for(let i=0;i<18;i++){
+    const a=(i/18)*Math.PI*2+time*0.38;
     const dist=(4+Math.sin(time*2.2+i*1.3)*3)*scale;
     const px=cx+Math.cos(a)*dist,py=cy+Math.sin(a)*dist;
-    const pulse=(Math.sin(time*3+i*0.7)*.5+.5);
-    const sz=0.8+pulse*2.2;
-    ctx.beginPath();ctx.arc(px,py,sz,0,Math.PI*2);
-    ctx.fillStyle=`rgba(255,255,255,${0.25+pulse*0.55})`;ctx.fill();
+    const pulse=Math.sin(time*3+i*0.7)*.5+.5;
+    ctx.beginPath();ctx.arc(px,py,0.8+pulse*2.2,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,255,255,${0.22+pulse*0.52})`;ctx.fill();
   }
-  // secondary slower ring
   for(let i=0;i<10;i++){
-    const a=(i/10)*Math.PI*2+time*0.18;
+    const a=(i/10)*Math.PI*2+time*0.16;
     const dist=(10+Math.sin(time*1.5+i)*4)*scale;
     const px=cx+Math.cos(a)*dist,py=cy+Math.sin(a)*dist;
     const pulse=Math.sin(time*2.5+i*0.9)*.5+.5;
     ctx.beginPath();ctx.arc(px,py,0.6+pulse*1.4,0,Math.PI*2);
-    ctx.fillStyle=`rgba(200,220,255,${0.2+pulse*0.35})`;ctx.fill();
+    ctx.fillStyle=`rgba(200,220,255,${0.18+pulse*0.32})`;ctx.fill();
   }
 }
 
-// Filament: shimmer along arm tips and center flicker
 function drawFilamentTingle(scale,time){
-  const count=20;
-  for(let i=0;i<count;i++){
-    const a=(i/count)*Math.PI*2;
+  for(let i=0;i<20;i++){
+    const a=(i/20)*Math.PI*2;
     const dist=(3+Math.sin(time*2.8+i*1.1)*2.5)*scale;
     const px=cx+Math.cos(a)*dist,py=cy+Math.sin(a)*dist;
     const pulse=Math.sin(time*3.5+i*0.8)*.5+.5;
     ctx.beginPath();ctx.arc(px,py,0.5+pulse*1.8,0,Math.PI*2);
-    ctx.fillStyle=`hsla(${190+i*8},80%,90%,${0.2+pulse*0.5})`;ctx.fill();
+    ctx.fillStyle=`hsla(${190+i*8},80%,90%,${0.18+pulse*0.45})`;ctx.fill();
   }
 }
 
-// Fiber: warm ember sparks near core
 function drawFiberTingle(scale,time){
-  const count=22;
-  for(let i=0;i<count;i++){
-    const a=(i/count)*Math.PI*2+time*0.15;
+  for(let i=0;i<22;i++){
+    const a=(i/22)*Math.PI*2+time*0.14;
     const dist=(3+Math.sin(time*2+i*1.4)*3)*scale;
     const px=cx+Math.cos(a)*dist,py=cy+Math.sin(a)*dist;
     const pulse=Math.sin(time*2.8+i*0.6)*.5+.5;
     const warm=i%3!==0;
     ctx.beginPath();ctx.arc(px,py,0.7+pulse*2,0,Math.PI*2);
-    ctx.fillStyle=warm?`rgba(255,200,120,${0.22+pulse*0.5})`:`rgba(180,220,240,${0.18+pulse*0.38})`;
+    ctx.fillStyle=warm?`rgba(255,200,120,${0.2+pulse*0.48})`:`rgba(180,220,240,${0.16+pulse*0.35})`;
     ctx.fill();
   }
 }
 
-// ── DRAW FUNCTIONS ───────────────────────────────────────────
+// ── DRAW AESTHETICS ──────────────────────────────────────────
 function drawAurora(scale,time){
   const S=Math.min(W,H);
   const breathT=(scale-SCALE_MIN)/(SCALE_MAX-SCALE_MIN);
-
-  // Dark bg with trail
-  ctx.fillStyle='rgba(10,7,18,0.55)';ctx.fillRect(0,0,W,H);
-
+  ctx.fillStyle='rgba(10,7,18,0.52)';ctx.fillRect(0,0,W,H);
   auroraOrbs.forEach(orb=>{
     const driftAngle=orb.angle+Math.sin(time*orb.driftSpeed+orb.driftPhase)*orb.driftAmp;
     const expandedR=orb.baseR*(0.5+breathT*1.1);
     const dist=expandedR*S;
     const px=cx+Math.cos(driftAngle)*dist,py=cy+Math.sin(driftAngle)*dist;
     const bloomSize=orb.size*S*(0.55+breathT*0.85);
-    const pulse=Math.sin(time*0.4*speedMult+orb.pulsePhase)*0.04;
+    const pulse=Math.sin(time*0.4+orb.pulsePhase)*0.04;
     const alpha=orb.alpha*(0.45+breathT*0.55)+pulse;
     const g=ctx.createRadialGradient(px-bloomSize*.15,py-bloomSize*.12,bloomSize*.02,px,py,bloomSize);
     g.addColorStop(0,`hsla(${orb.h},${orb.s}%,${orb.l+10}%,${Math.min(alpha,.92)})`);
@@ -320,16 +307,12 @@ function drawAurora(scale,time){
     g.addColorStop(1,'transparent');
     ctx.beginPath();ctx.arc(px,py,bloomSize,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
   });
-
-  // Central glow
   const coreSize=S*(0.12+breathT*0.18);
   const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,coreSize);
   cg.addColorStop(0,`rgba(240,235,255,${0.06+breathT*0.12})`);
   cg.addColorStop(0.5,`rgba(200,185,240,${0.03+breathT*0.06})`);
   cg.addColorStop(1,'transparent');
   ctx.beginPath();ctx.arc(cx,cy,coreSize,0,Math.PI*2);ctx.fillStyle=cg;ctx.fill();
-
-  // Tingle always on — radial ripples that intensify on hold
   drawAuroraTingle(time);
 }
 
@@ -337,9 +320,8 @@ function filPt(f,t,scale,time){
   const angle=f.baseAngle+f.jitter+Math.sin(time*.28+f.wavPhase)*.035;
   const wave=Math.sin(t*Math.PI*f.wavFreq+f.wavPhase+time*.45)*f.wavAmp*t;
   const perp=angle+Math.PI/2;
-  const dist=t*f.len*R*scale;
-  return{x:cx+Math.cos(angle)*dist+Math.cos(perp)*wave*R*.48,
-         y:cy+Math.sin(angle)*dist+Math.sin(perp)*wave*R*.48};
+  return{x:cx+Math.cos(angle)*t*f.len*R*scale+Math.cos(perp)*wave*R*.48,
+         y:cy+Math.sin(angle)*t*f.len*R*scale+Math.sin(perp)*wave*R*.48};
 }
 
 function drawBokeh(time){
@@ -385,10 +367,8 @@ function drawFilaments(scale,time){
       const shimmer=Math.sin(time*1.8+orb.phase)*.5+.5;
       const oh=orb.hue+shimmer*38;
       const og=ctx.createRadialGradient(p.x-sr*.3,p.y-sr*.3,sr*.04,p.x,p.y,sr);
-      og.addColorStop(0,`hsla(${oh+18},88%,97%,.94)`);
-      og.addColorStop(.22,`hsla(${oh},72%,87%,.68)`);
-      og.addColorStop(.6,`hsla(${oh-18},58%,74%,.28)`);
-      og.addColorStop(1,'transparent');
+      og.addColorStop(0,`hsla(${oh+18},88%,97%,.94)`);og.addColorStop(.22,`hsla(${oh},72%,87%,.68)`);
+      og.addColorStop(.6,`hsla(${oh-18},58%,74%,.28)`);og.addColorStop(1,'transparent');
       ctx.beginPath();ctx.arc(p.x,p.y,sr,0,Math.PI*2);ctx.fillStyle=og;ctx.fill();
       ctx.strokeStyle=`hsla(${oh+28},88%,95%,${.16+shimmer*.16})`;ctx.lineWidth=.45;ctx.stroke();
       ctx.beginPath();ctx.arc(p.x-sr*.3,p.y-sr*.3,sr*.16,0,Math.PI*2);
@@ -479,16 +459,17 @@ function drawCore(scale,time,warm){
 
 function drawArc(){
   if(!running)return;
-  const arcR=R*1.18+8; // fixed to R, not breathScale — no clipping
-  ctx.beginPath();ctx.arc(cx,cy,arcR,-Math.PI/2,-Math.PI/2+phaseProg*Math.PI*2);
-  const h=breathPhase==='inhale'?192:breathPhase==='exhale'?218:200;
-  ctx.strokeStyle=`hsla(${h},62%,86%,.32)`;ctx.lineWidth=1;ctx.stroke();
-  // track ring (dim full circle)
+  const arcR=R*1.22;
+  // dim track
   ctx.beginPath();ctx.arc(cx,cy,arcR,0,Math.PI*2);
-  ctx.strokeStyle=`hsla(${h},40%,70%,.08)`;ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle='rgba(200,195,220,.07)';ctx.lineWidth=1;ctx.stroke();
+  // progress
+  ctx.beginPath();ctx.arc(cx,cy,arcR,-Math.PI/2,-Math.PI/2+phaseProg*Math.PI*2);
+  const h=currentPhaseIdx===0?192:currentPhaseIdx===2?218:205;
+  ctx.strokeStyle=`hsla(${h},60%,84%,.28)`;ctx.lineWidth=1;ctx.stroke();
 }
 
-// ── MAIN LOOP ────────────────────────────────────────────────
+// ── LOOP ─────────────────────────────────────────────────────
 function frame(now){
   requestAnimationFrame(frame);
   const rawDt=Math.min((now-lastTime)/1000,.05);
@@ -511,18 +492,17 @@ function frame(now){
   if(aesthetic===0){
     drawAurora(breathScale,elapsed);
     if(running){
-      const arcR=Math.min(W,H)*.44;
-      ctx.beginPath();ctx.arc(cx,cy,arcR,-Math.PI/2,-Math.PI/2+phaseProg*Math.PI*2);
-      ctx.strokeStyle='rgba(220,210,240,.18)';ctx.lineWidth=1;ctx.stroke();
+      const arcR=Math.min(W,H)*.46;
       ctx.beginPath();ctx.arc(cx,cy,arcR,0,Math.PI*2);
-      ctx.strokeStyle='rgba(220,210,240,.05)';ctx.lineWidth=1;ctx.stroke();
+      ctx.strokeStyle='rgba(200,195,230,.05)';ctx.lineWidth=1;ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,arcR,-Math.PI/2,-Math.PI/2+phaseProg*Math.PI*2);
+      ctx.strokeStyle='rgba(220,210,245,.16)';ctx.lineWidth=1;ctx.stroke();
     }
   } else if(aesthetic===1){
     drawBokeh(elapsed);drawOrb(breathScale,elapsed);drawCore(breathScale,elapsed,false);drawArc();
   } else if(aesthetic===2){
     drawBokeh(elapsed);drawPetals(breathScale,elapsed);drawFilaments(breathScale,elapsed);
-    drawFilamentTingle(breathScale,elapsed);
-    drawCore(breathScale,elapsed,false);drawArc();
+    drawFilamentTingle(breathScale,elapsed);drawCore(breathScale,elapsed,false);drawArc();
   } else {
     drawFibers(breathScale,elapsed);drawCore(breathScale,elapsed,true);drawArc();
   }
@@ -531,7 +511,9 @@ requestAnimationFrame(frame);
 
 // ── CONTROLS ─────────────────────────────────────────────────
 function toggleSub(id){
-  ['sub-aesthetic','sub-timing'].forEach(s=>{if(s!==id)document.getElementById(s).classList.remove('open');});
+  ['sub-aesthetic','sub-timing'].forEach(s=>{
+    if(s!==id)document.getElementById(s).classList.remove('open');
+  });
   document.getElementById(id).classList.toggle('open');
 }
 document.getElementById('lbl-aesthetic').addEventListener('click',()=>toggleSub('sub-aesthetic'));
@@ -559,23 +541,31 @@ document.getElementById('lbl-sound').addEventListener('click',()=>{
   if(soundOn&&!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
 });
 
-beginBtn.addEventListener('click',()=>{
-  if(soundOn&&!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  running=true;
-  beginBtn.style.opacity='0';beginBtn.style.pointerEvents='none';
-  pauseBtn.style.display='block';
-  startPhase(0);
-});
-
+// Single action button: begin → pause ↔ resume, long press = reset
 let pressTimer=null;
-function startPress(){pressTimer=setTimeout(()=>{resetAll();},650);}
-function endPress(){if(pressTimer){clearTimeout(pressTimer);pressTimer=null;}}
-pauseBtn.addEventListener('mousedown',startPress);
-pauseBtn.addEventListener('touchstart',startPress,{passive:true});
-pauseBtn.addEventListener('mouseup',endPress);
-pauseBtn.addEventListener('touchend',endPress,{passive:true});
-pauseBtn.addEventListener('click',()=>{
-  if(running){paused=!paused;pauseBtn.textContent=paused?'resume':'pause';}
+actionBtn.addEventListener('mousedown',()=>{
+  if(btnState!=='begin') pressTimer=setTimeout(()=>{resetAll();},700);
+});
+actionBtn.addEventListener('touchstart',()=>{
+  if(btnState!=='begin') pressTimer=setTimeout(()=>{resetAll();},700);
+},{passive:true});
+function clearPress(){if(pressTimer){clearTimeout(pressTimer);pressTimer=null;}}
+actionBtn.addEventListener('mouseup',clearPress);
+actionBtn.addEventListener('touchend',clearPress,{passive:true});
+
+actionBtn.addEventListener('click',()=>{
+  if(btnState==='begin'){
+    if(soundOn&&!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    running=true;
+    startPhase(0);
+    setBtn('pause');
+  } else if(btnState==='pause'){
+    paused=true;
+    setBtn('resume');
+  } else if(btnState==='resume'){
+    paused=false;
+    setBtn('pause');
+  }
 });
 
 canvas.addEventListener('click',()=>{
