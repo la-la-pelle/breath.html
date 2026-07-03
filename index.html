@@ -7,7 +7,7 @@
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html,body { width:100%; height:100%; overflow:hidden; background:#080c12; font-family:'Georgia',serif; }
-#wrap { position:relative; width:100vw; height:100vh; overflow:hidden; }
+#wrap { position:relative; width:100vw; height:100vh; height:100dvh; overflow:hidden; }
 canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
 #menu { position:absolute; top:max(22px, env(safe-area-inset-top, 22px)); left:24px; z-index:10; user-select:none; }
 .menu-item { font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:rgba(180,175,195,.38); cursor:pointer; padding:5px 0; transition:color .2s; line-height:1.9; }
@@ -24,8 +24,9 @@ canvas { position:absolute; top:0; left:0; width:100%; height:100%; }
 #action-btn:hover,#action-btn:active { color:rgba(220,215,238,.75); }
 @media(max-width:480px){ .menu-item{font-size:10px;padding:8px 0;} .sub-item{padding:8px 0;} #count-display{font-size:32px;} #action-btn{font-size:10px;} }
 
-/* Focus states for keyboard navigation */
-.menu-item:focus, .sub-item:focus, #action-btn:focus {
+/* Focus states for keyboard navigation only — :focus-visible keeps mouse/touch clicks
+   from leaving a permanent outline box around the button after tapping it */
+.menu-item:focus-visible, .sub-item:focus-visible, #action-btn:focus-visible {
   outline: 1px solid rgba(210,205,230,0.6);
   outline-offset: 3px;
   border-radius: 2px;
@@ -94,8 +95,11 @@ function easeExhale(t){return t<0.5?2*t*t:-1+(4-2*t)*t;}
 function easeInhale(t){return 0.4*t+0.6*t*t*t;}
 
 function resize(){
-  W=canvas.width=window.innerWidth;
-  H=canvas.height=window.innerHeight;
+  // visualViewport tracks the actually-visible area (excludes browser chrome like
+  // Chrome iOS's toolbar) more reliably than window.innerHeight on some mobile browsers
+  const vw=window.visualViewport;
+  W=canvas.width=vw?Math.round(vw.width):window.innerWidth;
+  H=canvas.height=vw?Math.round(vw.height):window.innerHeight;
   cx=W/2;cy=H/2;
   // Clamp R so organism never clips text on tiny screens
   const baseR=W<360?0.24:W<480?0.28:0.26;
@@ -966,6 +970,10 @@ canvas.addEventListener('click',()=>{
 
 resize();
 window.addEventListener('resize',resize);
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize',resize);
+  window.visualViewport.addEventListener('scroll',resize);
+}
 </script>
 </body>
 </html>
